@@ -2,7 +2,7 @@ from flask import Flask, jsonify
 from flask_restful import Api
 
 from blacklist import BLACKLIST
-from resources.hotel import Hoteis, Hotel
+from resources.hotel import HoteisAPI, Hotel
 from resources.usuario import User, UserRegister, UserLogin, UserLogout
 from flask_jwt_extended import JWTManager
 
@@ -30,7 +30,7 @@ def token_de_acesso_invalidado(jwt_header, jwt_payload):
     return jsonify({'message': 'You have been logged out.'}), 401
 
 
-api.add_resource(Hoteis, '/hoteis')
+api.add_resource(HoteisAPI, '/hoteis', endpoint='hoteis')
 api.add_resource(Hotel, '/hoteis/<string:hotel_id>')
 api.add_resource(User, '/usuarios/<int:user_id>')
 api.add_resource(UserRegister, '/cadastro')

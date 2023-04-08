@@ -1,11 +1,90 @@
 from flask_restful import Resource, reqparse
+from flask import request, abort
 from models.hotel import HotelModel
 from flask_jwt_extended import jwt_required
+from marshmallow import Schema, fields
+from marshmallow.validate import Length
+import sqlite3
 
 
-class Hoteis(Resource):
+class HoteisQuerySchema(Schema):
+    estrelas_min = fields.Float()
+    estrelas_max = fields.Float()
+    diaria_min = fields.Float()
+    diaria_max = fields.Float()
+    cidade = fields.String()
+    # cidade = fields.String(required=True, validate=Length(max=30, error="cidade must be a 'string' shorter than '30' letters."))
+    limit = fields.Float()
+    offset = fields.Float()
+
+
+def normalize_path_params(cidade=None,
+                          estrelas_min=0,
+                          estrelas_max=5,
+                          diaria_min=0,
+                          diaria_max=10000,
+                          limit=50,
+                          offset=0, **dados):
+    if cidade:
+        return {
+            'estrelas_min': estrelas_min,
+            'estrelas_max': estrelas_max,
+            'diaria_min': diaria_min,
+            'diaria_max': diaria_max,
+            'cidade': cidade,
+            'limit': limit,
+            'offset': offset}
+    return {
+        'estrelas_min': estrelas_min,
+        'estrelas_max': estrelas_max,
+        'diaria_min': diaria_min,
+        'diaria_max': diaria_max,
+        'limit': limit,
+        'offset': offset}
+
+
+class HoteisAPI(Resource):
     def get(self):
-        return {'hoteis': [hotel.json() for hotel in HotelModel.query.all()]}
+        # conecta ao BD
+        connection = sqlite3.connect('instance/banco.db')
+        cursor = connection.cursor()
+
+        # valida os args
+        schema = HoteisQuerySchema()
+        errors = schema.validate(request.args)
+        if errors:
+            abort(400, errors)
+
+        # tive que usar o request.args porque não estava funcionando pelo reqparse, como no curso
+        # descobri outra forma de resolver, que seria adicionar no .add_argument(location="args")
+        args = request.args.to_dict()
+        parametros = normalize_path_params(**args)
+
+        if not args.get('cidade'):
+            consulta = "SELECT * FROM hoteis \
+                        WHERE (estrelas >= ? and estrelas <= ?) \
+                        and (diaria >= ? and diaria <= ?) \
+                        LIMIT ? OFFSET ?"
+            tupla = tuple([parametros[chave] for chave in parametros])
+            resultado = cursor.execute(consulta, tupla)
+        else:
+            consulta = "SELECT * FROM hoteis \
+                        WHERE (estrelas >= ? and estrelas <= ?) \
+                        and (diaria >= ? and diaria <= ?) \
+                        and cidade = ? LIMIT ? OFFSET ?"
+            tupla = tuple([parametros[chave] for chave in parametros])
+            resultado = cursor.execute(consulta, tupla)
+        hoteis = []
+        for linha in resultado:
+            hoteis.append({
+                'hotel_id': linha[0],
+                'nome': linha[1],
+                'estrelas': linha[2],
+                'diaria': linha[3],
+                'cidade': linha[4]
+            })
+
+        return {'hoteis': hoteis}
 
 
 class Hotel(Resource):
@@ -31,7 +110,7 @@ class Hotel(Resource):
         try:
             hotel.save_hotel()
         except:
-            return {'message': 'An internal error ocurred trying to save hotel.'}, 500
+            return {'message': 'An internal error occurred trying to save hotel.'}, 500
         return hotel.json()
 
     @jwt_required()
@@ -46,7 +125,7 @@ class Hotel(Resource):
         try:
             hotel.save_hotel()
         except:
-            return {'message': 'An internal error ocurred trying to save hotel.'}, 500
+            return {'message': 'An internal error occurred trying to save hotel.'}, 500
         return hotel.json(), 201
 
     @jwt_required()
@@ -56,6 +135,6 @@ class Hotel(Resource):
             try:
                 hotel.delete_hotel()
             except:
-                return {'message': 'An error ocurred trying to delete hotel.'}, 500
+                return {'message': 'An error occurred trying to delete hotel.'}, 500
             return {'message': 'Hotel deleted.'}
         return {'message': 'Hotel not found.'}, 404

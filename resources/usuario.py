@@ -25,7 +25,7 @@ class User(Resource):
             try:
                 user.delete_user()
             except:
-                return {'message': 'An error ocurred trying to delete hotel.'}, 500
+                return {'message': 'An error occurred trying to delete hotel.'}, 500
             return {'message': 'User deleted.'}
         return {'message': 'User not found.'}, 404
 
@@ -50,7 +50,7 @@ class UserLogin(Resource):
         user = UserModel.find_by_login(dados['login'])
         if user and hmac.compare_digest(user.senha, dados['senha']):
             token_de_acesso = create_access_token(identity=user.user_id)
-            return {'acess_token': token_de_acesso}, 200
+            return {'access_token': token_de_acesso}, 200
         return {'message': 'The username or password is incorrect.'}, 401
 
 
