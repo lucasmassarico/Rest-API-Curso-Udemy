@@ -4,6 +4,7 @@ from models.hotel import HotelModel
 from flask_jwt_extended import jwt_required
 from marshmallow import Schema, fields
 from marshmallow.validate import Length
+from resources.filtros import normalize_path_params, consulta_com_cidade, consulta_sem_cidade
 import sqlite3
 
 
@@ -16,31 +17,6 @@ class HoteisQuerySchema(Schema):
     # cidade = fields.String(required=True, validate=Length(max=30, error="cidade must be a 'string' shorter than '30' letters."))
     limit = fields.Float()
     offset = fields.Float()
-
-
-def normalize_path_params(cidade=None,
-                          estrelas_min=0,
-                          estrelas_max=5,
-                          diaria_min=0,
-                          diaria_max=10000,
-                          limit=50,
-                          offset=0, **dados):
-    if cidade:
-        return {
-            'estrelas_min': estrelas_min,
-            'estrelas_max': estrelas_max,
-            'diaria_min': diaria_min,
-            'diaria_max': diaria_max,
-            'cidade': cidade,
-            'limit': limit,
-            'offset': offset}
-    return {
-        'estrelas_min': estrelas_min,
-        'estrelas_max': estrelas_max,
-        'diaria_min': diaria_min,
-        'diaria_max': diaria_max,
-        'limit': limit,
-        'offset': offset}
 
 
 class HoteisAPI(Resource):
@@ -61,17 +37,11 @@ class HoteisAPI(Resource):
         parametros = normalize_path_params(**args)
 
         if not args.get('cidade'):
-            consulta = "SELECT * FROM hoteis \
-                        WHERE (estrelas >= ? and estrelas <= ?) \
-                        and (diaria >= ? and diaria <= ?) \
-                        LIMIT ? OFFSET ?"
+            consulta = consulta_sem_cidade
             tupla = tuple([parametros[chave] for chave in parametros])
             resultado = cursor.execute(consulta, tupla)
         else:
-            consulta = "SELECT * FROM hoteis \
-                        WHERE (estrelas >= ? and estrelas <= ?) \
-                        and (diaria >= ? and diaria <= ?) \
-                        and cidade = ? LIMIT ? OFFSET ?"
+            consulta = consulta_com_cidade
             tupla = tuple([parametros[chave] for chave in parametros])
             resultado = cursor.execute(consulta, tupla)
         hoteis = []
@@ -81,7 +51,8 @@ class HoteisAPI(Resource):
                 'nome': linha[1],
                 'estrelas': linha[2],
                 'diaria': linha[3],
-                'cidade': linha[4]
+                'cidade': linha[4],
+                'site__id': linha[5]
             })
 
         return {'hoteis': hoteis}
@@ -93,6 +64,7 @@ class Hotel(Resource):
     atributos.add_argument('estrelas', type=float, required=True, help="The field 'estrelas' cannot be left blank.")
     atributos.add_argument('diaria')
     atributos.add_argument('cidade')
+    atributos.add_argument('site_id', type=int, required=True, help="Every 'hotel' needs to be linked with a site")
 
     def get(self, hotel_id):
         hotel = HotelModel.find_hotel(hotel_id)
